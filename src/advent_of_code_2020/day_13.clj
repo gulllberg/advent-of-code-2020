@@ -46,22 +46,19 @@
 
 (defn add-bus
   {:test (fn []
-           (is= (add-bus 0 17 [13 2]) 102)
-           (is= (add-bus 102 221 [19 3]) 3417))}
-  [timestamp increment [id offset]]
+           (is= (add-bus [0 17] [13 2]) [102 221])
+           (is= (add-bus [102 221] [19 3]) [3417 4199]))}
+  [[timestamp increment] [id offset]]
   (loop [ts timestamp]
     (if (= 0 (mod (+ ts offset) id))
-      ts
+      [ts (* increment id)]
       (recur (+ ts increment)))))
 
 (defn add-buses
   {:test (fn []
            (is= (add-buses [[17 0] [13 2] [19 3]]) 3417))}
   [buses]
-  (first (reduce (fn [[timestamp increment] [id offset]]
-                   [(add-bus timestamp increment [id offset]) (* increment id)])
-                 [0 1]
-                 buses)))
+  (first (reduce add-bus [0 1] buses)))
 
 (defn solve-b
   []
