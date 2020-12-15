@@ -4,24 +4,24 @@
 
 (defn process-input
   [input]
-  (reduce (fn [a i]
-            (assoc a (nth input i) [i nil] :last (nth input i)))
+  (reduce (fn [s i]
+            (assoc s (nth input i) i))
           {}
-          (range (count input))))
+          ; Don't add last number yet
+          (range (dec (count input)))))
 
 (defn solve-for-number
   [number]
-  (loop [i 6
+  (loop [i 5
+         n 6
          s (process-input input)]
-    (if (= i number)
-      (:last s)
+    (if (= i (dec number))
+      n
       (recur (inc i)
-             (let [last-number (:last s)
-                   [last-appearance penultimate-appearance] (get s last-number)]
-               (if penultimate-appearance
-                 (let [new-number (- last-appearance penultimate-appearance)]
-                   (assoc s new-number (if (contains? s new-number) [i (get-in s [new-number 0])] [i nil]) :last new-number))
-                 (assoc s 0 [i (get-in s [0 0])] :last 0)))))))
+             (if-let [last-appearance (get s n)]
+               (- i last-appearance)
+               0)
+             (assoc s n i)))))
 
 (defn solve-a
   []
@@ -41,5 +41,5 @@
   (time
     (solve-b))
   ; 10613991
-  ; "Elapsed time: 37000.796707 msecs"
+  ; "Elapsed time: 16521.881516 msecs"
   )
