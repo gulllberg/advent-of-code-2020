@@ -18,27 +18,32 @@
 
 (defn check-message
   [message rules-state rules-to-fulfill]
-  (reduce (fn [[is-valid message] rule-id]
-            (let [rule-possibilities (get rules-state rule-id)]
-              (if (string? rule-possibilities)
-                ; if we have reached the leaf (a letter rule) the rule is fulfilled if the message is equal to that letter
-                (if (= rule-possibilities (str (first message)))
-                  ; check subsequent rules with rest of message
-                  [true (apply str (rest message))]
-                  ; if not valid, we terminate
-                  (reduced false))
-                ; if one of the options are fulfilled the rule is satisfied
-                (if-let [r (first (filter boolean (map (fn [rule-possibility]
-                                                         (let [rr (check-message message rules-state rule-possibility)]
-                                                           rr))
-                                                       rule-possibilities)))]
-                  r
-                  (reduced false))
-                )))
-          [true message]
-          rules-to-fulfill))
+  (loop [message message
+         rules-to-fulfill rules-to-fulfill]
+    (if (empty? rules-to-fulfill)
+      message
+      (let [rule-id (first rules-to-fulfill)
+            rule-possibilities (get rules-state rule-id)]
+        (if (string? rule-possibilities)
+          ; if we have reached the leaf (a letter rule) the rule is fulfilled if the message is equal to that letter
+          (if (clojure.string/starts-with? message rule-possibilities)
+            ; check subsequent rules with rest of message
+            (recur (clojure.string/replace-first message rule-possibilities "") (rest rules-to-fulfill))
+            ; if not valid, we terminate
+            false)
+          ; if one of the options are fulfilled the rule is satisfied
+          (if-let [r (first (filter boolean (map (fn [rule-possibility]
+                                                (check-message message rules-state rule-possibility))
+                                              rule-possibilities)))]
+            (recur r (rest rules-to-fulfill))
+            false))))))
 
 (def rules-state-for-test (create-rules-state "0: 4 1 5\n1: 2 3 | 3 2\n2: 4 4 | 5 5\n3: 4 5 | 5 4\n4: \"a\"\n5: \"b\""))
+(def rules-for-advanced-test "42: 9 14 | 10 1\n9: 14 27 | 1 26\n10: 23 14 | 28 1\n1: \"a\"\n11: 42 31\n5: 1 14 | 15 1\n19: 14 1 | 14 14\n12: 24 14 | 19 1\n16: 15 1 | 14 14\n31: 14 17 | 1 13\n6: 14 14 | 1 14\n2: 1 24 | 14 4\n0: 8 11\n13: 14 3 | 1 12\n15: 1 | 14\n17: 14 2 | 1 7\n23: 25 1 | 22 14\n28: 16 1\n4: 1 1\n20: 14 14 | 1 15\n3: 5 14 | 16 1\n27: 1 6 | 14 18\n14: \"b\"\n21: 14 1 | 1 14\n25: 1 1 | 1 14\n22: 14 14\n8: 42\n26: 14 22 | 1 20\n18: 15 15\n7: 14 5 | 1 21\n24: 14 1")
+(def modified-rules-state-for-advanced-test (create-rules-state (-> rules-for-advanced-test
+                                                                    (clojure.string/replace-first "8: 42" "8: 42 | 42 8")
+                                                                    (clojure.string/replace-first "11: 42 31" "11: 42 31 | 42 11 31"))))
+(def messages-for-advanced-test "abbbbbabbbaaaababbaabbbbabababbbabbbbbbabaaaa\nbbabbbbaabaabba\nbabbbbaabbbbbabbbbbbaabaaabaaa\naaabbbbbbaaaabaababaabababbabaaabbababababaaa\nbbbbbbbaaaabbbbaaabbabaaa\nbbbababbbbaaaaaaaabbababaaababaabab\nababaaaaaabaaab\nababaaaaabbbaba\nbaabbaaaabbaaaababbaababb\nabbbbabbbbaaaababbbbbbaaaababb\naaaaabbaabaaaaababaa\naaaabbaaaabbaaa\naaaabbaabbaaaaaaabbbabbbaaabbaabaaa\nbabaaabbbaaabaababbaabababaaab\naabbbbbaabbbaaaaaabbbbbababaaaaabbaaabba")
 (defn outer-check-message
   {:test (fn []
            (is (outer-check-message "a" rules-state-for-test ["4"]))
@@ -55,15 +60,17 @@
            (is-not (outer-check-message "aaaba" rules-state-for-test ["1"]))
            (is-not (outer-check-message "bbbb" rules-state-for-test ["1"]))
            (is (outer-check-message "aaaabb" rules-state-for-test ["0"]))
-           (is-not (outer-check-message "aaaaaa" rules-state-for-test ["0"])))}
-  [message rules-state rules-to-fulfill]
-  ; didn't like when this check was in check-message
-  (if-let [r (check-message message rules-state rules-to-fulfill)]
-    (= (second r) "")
-    false))
+           (is-not (outer-check-message "aaaaaa" rules-state-for-test ["0"]))
 
-(def rules-for-advanced-test "42: 9 14 | 10 1\n9: 14 27 | 1 26\n10: 23 14 | 28 1\n1: \"a\"\n11: 42 31\n5: 1 14 | 15 1\n19: 14 1 | 14 14\n12: 24 14 | 19 1\n16: 15 1 | 14 14\n31: 14 17 | 1 13\n6: 14 14 | 1 14\n2: 1 24 | 14 4\n0: 8 11\n13: 14 3 | 1 12\n15: 1 | 14\n17: 14 2 | 1 7\n23: 25 1 | 22 14\n28: 16 1\n4: 1 1\n20: 14 14 | 1 15\n3: 5 14 | 16 1\n27: 1 6 | 14 18\n14: \"b\"\n21: 14 1 | 1 14\n25: 1 1 | 1 14\n22: 14 14\n8: 42\n26: 14 22 | 1 20\n18: 15 15\n7: 14 5 | 1 21\n24: 14 1")
-(def messages-for-advanced-test "abbbbbabbbaaaababbaabbbbabababbbabbbbbbabaaaa\nbbabbbbaabaabba\nbabbbbaabbbbbabbbbbbaabaaabaaa\naaabbbbbbaaaabaababaabababbabaaabbababababaaa\nbbbbbbbaaaabbbbaaabbabaaa\nbbbababbbbaaaaaaaabbababaaababaabab\nababaaaaaabaaab\nababaaaaabbbaba\nbaabbaaaabbaaaababbaababb\nabbbbabbbbaaaababbbbbbaaaababb\naaaaabbaabaaaaababaa\naaaabbaaaabbaaa\naaaabbaabbaaaaaaabbbabbbaaabbaabaaa\nbabaaabbbaaabaababbaabababaaab\naabbbbbaabbbaaaaaabbbbbababaaaaabbaaabba")
+           (is (outer-check-message "babbbbaabbbbbabbbbbbaabaaabaaa" modified-rules-state-for-advanced-test ["0"]))
+
+           )}
+  [message rules-state rules-to-fulfill]
+  (let [r (check-message message rules-state rules-to-fulfill)]
+    (if r
+      (= r "")
+      false)))
+
 (defn check-messages
   {:test (fn []
            (is= (check-messages (clojure.string/split-lines "ababbb\nbababa\nabbbab\naaabbb\naaaabbb") rules-state-for-test ["0"]) 2)
