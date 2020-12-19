@@ -33,8 +33,8 @@
             false)
           ; if one of the options are fulfilled the rule is satisfied
           (if-let [r (first (filter boolean (map (fn [rule-possibility]
-                                                (check-message message rules-state rule-possibility))
-                                              rule-possibilities)))]
+                                                   (check-message message rules-state rule-possibility))
+                                                 rule-possibilities)))]
             (recur r (rest rules-to-fulfill))
             false))))))
 
@@ -60,11 +60,7 @@
            (is-not (outer-check-message "aaaba" rules-state-for-test ["1"]))
            (is-not (outer-check-message "bbbb" rules-state-for-test ["1"]))
            (is (outer-check-message "aaaabb" rules-state-for-test ["0"]))
-           (is-not (outer-check-message "aaaaaa" rules-state-for-test ["0"]))
-
-           (is (outer-check-message "babbbbaabbbbbabbbbbbaabaaabaaa" modified-rules-state-for-advanced-test ["0"]))
-
-           )}
+           (is-not (outer-check-message "aaaaaa" rules-state-for-test ["0"])))}
   [message rules-state rules-to-fulfill]
   (let [r (check-message message rules-state rules-to-fulfill)]
     (if r
@@ -74,15 +70,7 @@
 (defn check-messages
   {:test (fn []
            (is= (check-messages (clojure.string/split-lines "ababbb\nbababa\nabbbab\naaabbb\naaaabbb") rules-state-for-test ["0"]) 2)
-           (is= (check-messages (clojure.string/split-lines messages-for-advanced-test) (create-rules-state rules-for-advanced-test) ["0"]) 3)
-
-           ; Might be that now we cannot only consider the first match of rule?
-           (is= (check-messages (clojure.string/split-lines messages-for-advanced-test)
-                                (create-rules-state (-> rules-for-advanced-test
-                                                        (clojure.string/replace-first "8: 42" "8: 42 | 42 8")
-                                                        (clojure.string/replace-first "11: 42 31" "11: 42 31 | 42 11 31")))
-                                ["0"])
-                12))}
+           (is= (check-messages (clojure.string/split-lines messages-for-advanced-test) (create-rules-state rules-for-advanced-test) ["0"]) 3))}
   [messages rules-state rules-to-fulfill]
   (reduce (fn [a message]
             (if (outer-check-message message rules-state rules-to-fulfill)
@@ -100,15 +88,48 @@
   ; 113
   )
 
+; Rule 0 only considers the two special (with loops) rules 8 and 11
+; Rules 8 and 11 consider (apart from themselves) rules 42 and 42 + 31 respectively.
+; We can therefore just iterate over various combinations of loops and see if any work
+(defn outer-check-message-b
+  {:test (fn []
+           (is (outer-check-message-b "babbbbaabbbbbabbbbbbaabaaabaaa" modified-rules-state-for-advanced-test)))}
+  ; Don't take rules-to-fulfill as argument, we know it's 0: 8 11
+  [message rules-state]
+  ; Needs range to end at 6 to give right answer. However, does not take very long to run with higher number instead
+  (let [combinations-to-try (for [x (range 1 6) y (range 1 6)] [x y])]
+    (loop [i 0]
+      (if (= (count combinations-to-try) i)
+        false
+        (let [[loops-8 loops-11] (nth combinations-to-try i)]
+          (if (= "" (check-message message rules-state (concat (repeat loops-8 "42") (repeat loops-11 "42") (repeat loops-11 "31"))))
+            true
+            (recur (inc i))))))))
+
+(defn check-messages-b
+  {:test (fn []
+           (is= (check-messages-b (clojure.string/split-lines messages-for-advanced-test)
+                                  (create-rules-state (-> rules-for-advanced-test
+                                                          (clojure.string/replace-first "8: 42" "8: 42 | 42 8")
+                                                          (clojure.string/replace-first "11: 42 31" "11: 42 31 | 42 11 31"))))
+                12))}
+  ; Don't take rules-to-fulfill as argument, we know it's 0: 8 11
+  [messages rules-state]
+  (reduce (fn [a message]
+            (if (outer-check-message-b message rules-state)
+              (inc a)
+              a))
+          0
+          messages))
+
 (defn solve-b
   []
-  (check-messages (clojure.string/split-lines messages-input)
-                  (create-rules-state (-> rules-input
-                                          (clojure.string/replace-first "8: 42" "8: 42 | 42 8")
-                                          (clojure.string/replace-first "11: 42 31" "11: 42 31 | 42 11 31")))
-                  ["0"]))
+  (check-messages-b (clojure.string/split-lines messages-input)
+                    (create-rules-state (-> rules-input
+                                            (clojure.string/replace-first "8: 42" "8: 42 | 42 8")
+                                            (clojure.string/replace-first "11: 42 31" "11: 42 31 | 42 11 31")))))
 
 (comment
   (solve-b)
-  ;
+  ; 253
   )
