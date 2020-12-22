@@ -48,7 +48,7 @@
   (loop [deck1 deck1
          deck2 deck2
          previous-states #{}]
-    (let [state (str (clojure.string/join "," deck1) (clojure.string/join "," deck2))]
+    (let [state (str (clojure.string/join "," deck1) "+" (clojure.string/join "," deck2))]
       (cond
         (contains? previous-states state)
         [:p1 deck1]
