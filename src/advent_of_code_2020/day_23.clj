@@ -1,6 +1,6 @@
 (ns advent-of-code-2020.day-23
   (:require [ysera.test :refer [is= is is-not]]
-            [ysera.collections :refer [index-of]]))
+            [ysera.collections :refer [index-of seq-contains?]]))
 
 (def input "315679824")
 
@@ -66,21 +66,24 @@
   ; 72496583
   )
 
-;(defn create-starting-cup-state
-;  [input max-number]
-;  (vec (concat (map read-string (re-seq #"\d" input)) (range 10 (inc max-number)))))
-
 ; All numbers keep track of the one they have after them
 (defn create-starting-cup-state
   [input max-number]
-  (let [numbers (concat (map read-string (re-seq #"\d" input)) (range (inc (count input)) (inc max-number)))]
-    (reduce (fn [state i]
-              (if (= i (dec (count numbers)))
-                (assoc state (nth numbers i) (first numbers))
-                (assoc state (nth numbers i) (nth numbers (inc i)))))
-            ; Label 0 does not exist, so put nil there and for all others index = label
-            (assoc (vec (range (inc max-number))) 0 nil)
-            (range (count numbers)))))
+  (let [input-numbers (map read-string (re-seq #"\d" input))
+        input-bit (reduce (fn [a i]
+                            (if (= i (dec (count input-numbers)))
+                              (if (> max-number (count input-numbers))
+                                (assoc a (nth input-numbers i) (inc (count input-numbers)))
+                                (assoc a (nth input-numbers i) (first input-numbers)))
+                              (assoc a (nth input-numbers i) (nth input-numbers (inc i)))))
+                          ; Label 0 does not exist, so put nil there and for all others index = label
+                          (assoc (vec (range (inc (count input-numbers)))) 0 nil)
+                          (range (count input-numbers)))
+        rest-bit (range (+ (count input-numbers) 2) (+ max-number 2))
+        state (into [] (concat input-bit rest-bit))]
+    (if (> max-number (count input-numbers))
+      (assoc state max-number (first input-numbers))
+      state)))
 
 (defn pick-up-cups
   {:test (fn []
@@ -88,8 +91,8 @@
   [cups current-cup]
   (let [[remaining-cups picked-up-cups next-pointer] (reduce (fn [[remaining-cups picked-up-cups next-pointer] _]
                                                                [(assoc remaining-cups next-pointer nil) (conj picked-up-cups next-pointer) (nth remaining-cups next-pointer)])
-                                                            [cups [] (nth cups current-cup)]
-                                                            (range 3))]
+                                                             [cups [] (nth cups current-cup)]
+                                                             (range 3))]
     ; Glue together remaining cups again
     [(assoc remaining-cups current-cup next-pointer) picked-up-cups]))
 
@@ -226,6 +229,79 @@
 ;                   [cups starting-cup]
 ;                   (range rounds)))))
 
+(defn create-starting-cup-state-java
+  [input max-number]
+  ; map with dec to convert the number to index (so number 1 is on index 0 etc)
+  (let [input-numbers (map dec (map read-string (re-seq #"\d" input)))
+        input-bit (reduce (fn [a i]
+                            (if (= i (dec (count input-numbers)))
+                              (assoc a (nth input-numbers i) (count input-numbers))
+                              (assoc a (nth input-numbers i) (nth input-numbers (inc i)))))
+                          (vec (range (count input-numbers)))
+                          (range (count input-numbers)))
+        rest-bit (range (inc (count input-numbers)) (inc max-number))
+        state (int-array (concat input-bit rest-bit))]
+    (aset-int state (dec max-number) (first input-numbers))
+    state))
+
+(defn pick-up-cups-java
+  ;{:test (fn []
+  ;         (is= (pick-up-cups [nil 2 5 8 6 4 7 3 9 1] 3) [[nil nil 5 2 6 4 7 3 nil nil] [8 9 1]]))}
+  [cups current-cup]
+  (let [[picked-up-cups next-pointer] (reduce (fn [[picked-up-cups next-pointer] _]
+                                                [(conj picked-up-cups next-pointer) (aget cups next-pointer)])
+                                              [[] (aget cups current-cup)]
+                                              (range 3))]
+    ; Short circuit the picked up cups
+    (aset-int cups current-cup next-pointer)
+    [cups picked-up-cups]))
+
+(defn put-back-picked-up-cups-java
+  ;{:test (fn []
+  ;         (is= (put-back-picked-up-cups [nil nil 5 2 6 4 7 3 nil nil] [8 9 1] 2) [nil 5 8 2 6 4 7 3 9 1]))}
+  [cups picked-up-cups destination-cup]
+  (reduce (fn [[new-cups next] i]
+            (if (= i 3)
+              ; Make the last of picked up cups point at the one destination-cup originally pointed to
+              (do (aset-int new-cups next (aget cups destination-cup))
+                  new-cups)
+              (do (aset-int new-cups next (nth picked-up-cups i))
+                  [new-cups (nth picked-up-cups i)])))
+          [cups destination-cup]
+          (range 4)))
+
+(defn get-next-state-java
+  ;{:test (fn []
+  ;         (is= (get-next-state-b [nil nil 5 2 6 4 7 3 nil nil] [8 9 1] 3 9) [nil 5 8 2 6 4 7 3 9 1]))}
+  [cups picked-up-cups current-cup max-label]
+  (let [destination-cup (loop [cup-to-look-for (dec current-cup)]
+                          (if (= cup-to-look-for 0)
+                            (recur max-label)
+                            (if (seq-contains? picked-up-cups cup-to-look-for)
+                              (recur (dec cup-to-look-for))
+                              cup-to-look-for)))]
+    (put-back-picked-up-cups-java cups picked-up-cups destination-cup)))
+
+(defn play-game-java
+  ;{:test (fn []
+  ;         (is= (play-game-b 10 (create-starting-cup-state "389125467" 9) 3) (create-starting-cup-state "583741926" 9)))}
+  [rounds cups starting-cup]
+  (let [max-label (dec (count cups))]
+    (loop [i 0
+           cups cups
+           current-cup starting-cup]
+      (if (= i rounds)
+        cups
+        (let [[cups picked-up-cups] (pick-up-cups-java cups current-cup)
+              next-cup-state (get-next-state-java cups picked-up-cups current-cup max-label)]
+          (recur (inc i) next-cup-state (aget next-cup-state current-cup)))))))
+
+(defn get-answer-java
+  [cups]
+  ; We have changed to indexed, translate back to label here
+  (let [cup-after-1 (aget cups 0)
+        cup-after-that (aget cups cup-after-1)]
+    (* (inc cup-after-that) (inc cup-after-that))))
 
 (defn get-answer-b
   {:test (fn []
@@ -239,9 +315,14 @@
   []
   (get-answer-b (play-game-b 10000000 (create-starting-cup-state input 1000000) 3)))
 
+(defn solve-b-java
+  []
+  (get-answer-java (play-game-java 10000000 (create-starting-cup-state-java input 1000000) 2)))
+
 (comment
   (solve-b)
-  (time
-    (get-answer-b (play-game-b 1000 (create-starting-cup-state "389125467" 1000) 3)))
-  ;
+  ; 41785843847
+
+  ; java does not run
+  (solve-b-java)
   )
